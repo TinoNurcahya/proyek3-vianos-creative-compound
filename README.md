@@ -46,6 +46,9 @@
 - [Variabel Lingkungan](#-variabel-lingkungan-environment-variables)
 - [Dokumentasi API](#-dokumentasi-api)
 - [Machine Learning & Supervisor](#-machine-learning-supervisor--cron-di-produksi)
+    - [Konfigurasi Supervisor](#1-konfigurasi-supervisor-etcsupervisorconfdvianos-workerconf)
+    - [Cron Job Penjadwal](#2-cron-job-penjadwal-scheduler)
+    - [Sistem Rekomendasi Hybrid](#3-sistem-rekomendasi-content-based--collaborative-filtering)
 - [Pemecahan Masalah (Troubleshooting)](#-pemecahan-masalah-troubleshooting)
 - [Roadmap Proyek](#-roadmap-proyek)
 - [Tim Pengembang](#-tim-pengembang)
@@ -293,6 +296,282 @@ Untuk melatih ulang AI secara otomatis dan tugas periodik lainnya, tambahkan bar
 * * * * * cd /var/www/proyek3-vianos-creative-compound && php artisan schedule:run >> /dev/null 2>&1
 ```
 
+### 3. Sistem Rekomendasi (Content-Based + Collaborative Filtering)
+
+Platform Seven Caffee menggunakan **hybrid recommendation system** yang menggabungkan dua pendekatan machine learning untuk memberikan rekomendasi menu yang paling relevan kepada setiap pengguna.
+
+#### 📊 Arsitektur Sistem Rekomendasi
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│          User Interacts (Browse, Add to Cart, Order)       │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+        ┌────────────┴────────────┐
+        │                         │
+        ▼                         ▼
+┌─────────────────────┐  ┌──────────────────────┐
+│  Content-Based      │  │  Collaborative       │
+│  Filtering (CBF)    │  │  Filtering (CF)      │
+│                     │  │                      │
+│ Features:           │  │ User-to-User         │
+│ • Category          │  │ Similarity:          │
+│ • Price             │  │ • Cosine Distance    │
+│ • Is Signature      │  │ • Purchase History   │
+│ • Popularity        │  │ • Similar Users      │
+│                     │  │                      │
+│ Distance: Euclidean │  | Distance: Cosine     │
+│ Kernel              │  │ Kernel               │
+└──────────┬──────────┘  └──────────┬───────────┘
+           │                        │
+           └────────────┬───────────┘
+                        │
+              ┌─────────▼──────────┐
+              │   Rank & Merge     │
+              │   Recommendations  │
+              │   (Top 6)          │
+              └─────────┬──────────┘
+                        │
+              ┌─────────▼──────────┐
+              │   Exclude Filter   │
+              │  • Already bought  │
+              │  • Already marked  │
+              │    as favorite     │
+              └─────────┬──────────┘
+                        │
+              ┌─────────▼──────────┐
+              │   Return Final     │
+              │   Recommendations  │
+              │   (Up to 6 items)  │
+              └──────────────────────┘
+```
+
+#### 🔧 Komponen Teknis
+
+**1. Content-Based Filtering (`ContentBasedRecommender.php`)**
+
+Menggunakan Rubix ML's `ZScaleStandardizer` untuk normalisasi fitur produk:
+
+| Fitur          | Tipe    | Sumber                      | Fungsi                      |
+| -------------- | ------- | --------------------------- | --------------------------- |
+| `category_id`  | Integer | `products.id_kategori`      | Klasifikasi kategori produk |
+| `price`        | Float   | `products.price`            | Harga relatif produk        |
+| `is_signature` | Boolean | `products.is_signature`     | Produk unggulan/signature   |
+| `popularity`   | Float   | SUM(`order_items.quantity`) | Jumlah unit terjual         |
+
+**Alur:**
+
+```php
+// 1. Fetch raw features dari semua produk
+$productRawMap = $recommender->getProductRawFeatures();
+
+// 2. Build user taste profile dari purchase history (weighted average)
+$userProfile = average($purchaseHistory entries * quantity weight);
+
+// 3. Compute Euclidean distance dari user profile ke semua produk
+$distances = euclidean_distance($userProfile, normalized_product_features);
+
+// 4. Return top-6 produk terdekat (paling mirip selera user)
+$topRecommendations = sort_by_distance($distances)->take(6);
+```
+
+**2. Collaborative Filtering (`CollaborativeFilteringRecommender.php`)**
+
+Menggunakan user-to-user similarity berbasis purchase history:
+
+| Aspek               | Deskripsi                                                                      |
+| ------------------- | ------------------------------------------------------------------------------ |
+| **User Vector**     | Array purchase quantities per produk: `[qty_prod1, qty_prod2, ..., qty_prodN]` |
+| **Normalization**   | ZScaleStandardizer (sama seperti CBF)                                          |
+| **Distance Kernel** | Cosine (mengukur sudut similarity, lebih cocok untuk sparse vectors)           |
+| **Similar Users**   | Top-k users dengan cosine similarity tertinggi                                 |
+| **Recommendation**  | Produk yang dibeli similar users tapi belum dibeli current user                |
+
+**Alur:**
+
+```php
+// 1. Normalize user purchase vector
+$userNorm = normalize($userRawVector);
+
+// 2. Compute cosine similarity dengan semua user lain
+$similarities = [];
+foreach (all_users as $otherUser) {
+    $similarity = cosine_kernel($userNorm, other_user_norm);
+    $similarities[$otherUser] = $similarity;
+}
+
+// 3. Get top-5 most similar users
+$similarUsers = sort_by_similarity($similarities)->take(5);
+
+// 4. Aggregate products dari similar users
+// (weighted by similarity score)
+$productScores = aggregate_products($similarUsers);
+
+// 5. Return top-6 products
+$topRecommendations = sort_by_score($productScores)->take(6);
+```
+
+#### 🔄 Training Pipeline
+
+Semua model di-train secara **otomatis dan berkala** melalui Laravel Scheduler + Queue:
+
+```php
+// routes/console.php
+Schedule::job(new TrainRecommenderJob())->weekly()->mondays()->at('02:00');
+Schedule::job(new TrainCollaborativeFilteringJob())->weekly()->mondays()->at('03:00');
+```
+
+**TrainRecommenderJob (Content-Based):**
+
+- Fetch semua produk available
+- Hitung popularity dari total quantity sold per produk
+- Fit ZScaleStandardizer pada feature matrix
+- Persist normalized vectors + scaling parameters ke `storage/app/ai-models/recommender_data.json`
+
+**TrainCollaborativeFilteringJob (Collaborative):**
+
+- Fetch semua users dengan completed orders
+- Build user-product purchase matrix
+- Fit ZScaleStandardizer pada matrix
+- Persist normalized vectors ke `storage/app/ai-models/collaborative_data.json`
+
+#### 🎯 Alur Rekomendasi pada User
+
+Ketika user membuka halaman `/recommendation`:
+
+```
+1. Query purchase history dari database
+   SELECT id_produk, SUM(quantity) FROM order_items
+   WHERE user_id = ? AND order_status = 'completed'
+   GROUP BY id_produk
+
+2. Query favorites (untuk exclude)
+   SELECT id_produk FROM favorites WHERE user_id = ?
+
+3. Load & use Content-Based Model
+   - Build weighted user profile dari purchase history
+   - Compute distances ke semua produk
+   - Get top-6 recommendations
+
+4. If (recommendations < 6 && model exists):
+   Load & use Collaborative Filtering Model
+   - Find top-5 similar users
+   - Get products from similar users
+   - Merge dengan recommendations sebelumnya
+
+5. If (recommendations < 6):
+   Fallback ke trending/popular products
+   - Sort by is_signature, then by sold_count
+
+6. Final Filter:
+   - Remove already purchased
+   - Remove already favorited
+   - Return final 6 items
+
+7. Pass to view with algorithm flag:
+   - 'hybrid' (Content + Collaborative)
+   - 'collaborative' (CF only)
+   - 'content-based' (CBF only)
+   - 'trending' (no ML)
+```
+
+#### 🏪 API & Controller
+
+**Controller: `RecommendationController.php`**
+
+```php
+// GET /recommendation
+public function index()
+{
+    // Returns recommendations dengan variabel:
+    // - $recommendations: Collection[Product] (max 6)
+    // - $usedMl: bool (apakah pakai ML)
+    // - $algorithm: 'hybrid'|'collaborative'|'content-based'|'trending'
+    // - $userFavoriteIds: array (untuk UI heart toggle)
+    // - $hasHistory: bool (user punya purchase history?)
+}
+```
+
+**View: `resources/views/user/recommendation.blade.php`**
+
+- Header dengan badge menunjukkan algoritma yang dipakai
+- 6-card grid layout dengan product image, name, description, price
+- Favorite toggle (AJAX POST ke `/user/favorite/toggle`)
+- Empty state dengan CTA ke menu jika user belum pernah pesan
+
+#### 📈 Data Storage
+
+Kedua model menyimpan state ke JSON files:
+
+```
+storage/app/ai-models/
+├── recommender_data.json          # Content-Based model
+│   ├── means: [mean per feature]
+│   ├── stds: [std per feature]
+│   ├── entries: [normalized vectors per product]
+│   └── product_ids: [ordered product IDs]
+│
+└── collaborative_data.json         # Collaborative model
+    ├── means: [mean per product]
+    ├── stds: [std per product]
+    ├── entries: [{user_id, raw, norm}, ...]
+    └── product_ids: [ordered product IDs]
+```
+
+#### ⚙️ Manual Training (Update Model)
+
+Jika Anda menambah produk baru atau ingin memperbarui model AI dengan data transaksi terbaru secara manual, gunakan perintah berikut di terminal:
+
+```bash
+php artisan tinker
+```
+
+Lalu jalankan perintah ini di dalam Tinker:
+
+```php
+// Update Model Rekomendasi (Content-Based)
+App\Jobs\TrainRecommenderJob::dispatch();
+
+// Update Model Collaborative Filtering
+App\Jobs\TrainCollaborativeFilteringJob::dispatch();
+
+// Update Model Prediksi Penjualan & Stok (Opsional)
+App\Jobs\TrainAiModelsJob::dispatch();
+```
+
+> [!NOTE]
+> Secara default, sistem sudah dijadwalkan untuk melakukan training otomatis setiap **Senin pukul 01:00 - 03:00 pagi**.
+
+#### 🧪 Testing & Validation
+
+Tersedia dua skrip pengujian untuk memverifikasi kesehatan model AI:
+
+1.  **Simple Test** (Fokus pada Content-Based):
+    ```bash
+    php test_recommender.php
+    ```
+
+2.  **Comprehensive Test** (Rekomendasi Lengkap & Data Nyata):
+    ```bash
+    php test_recommender_comprehensive.php
+    ```
+
+**Perbedaan Utama:**
+- `test_recommender.php`: Digunakan untuk verifikasi cepat apakah file model JSON bisa dibaca dan diproses oleh Rubix ML.
+- `test_recommender_comprehensive.php`: Menguji kedua model (Content-Based & Collaborative) menggunakan data asli dari database, mensimulasikan profil pengguna, dan menampilkan output yang lebih detail.
+
+#### 📊 Hybrid Strategy Comparison
+
+| Aspek           | Content-Based            | Collaborative             | Hybrid      |
+| --------------- | ------------------------ | ------------------------- | ----------- |
+| **Accuracy**    | Moderat                  | Tinggi (jika user banyak) | Tertinggi   |
+| **Cold Start**  | ✅ Baik (produk baru OK) | ❌ Buruk (user baru)      | ✅ Baik     |
+| **Scalability** | ✅ Fast                  | ⚠️ O(users²)              | ✅ Moderate |
+| **Serendipity** | ❌ Predictable           | ✅ Diverse                | ✅ Balanced |
+| **Best For**    | New products             | Established users         | Production  |
+
+Sistem ini menggunakan **Hybrid Approach** untuk mendapat manfaat dari keduanya!
+
 ---
 
 ## 🛠️ Pemecahan Masalah (Troubleshooting)
@@ -328,6 +607,9 @@ Berikut adalah beberapa fitur yang direncanakan untuk pengembangan ke depannya:
 - [ ] **Integrasi Payment Gateway**: Mendukung pembayaran pesanan QRIS otomatis via Midtrans/Xendit.
 - [ ] **Aplikasi Mobile PWA**: Menjadikan _website_ pelanggan lebih reaktif dan bisa diinstal sebagai aplikasi _Progressive Web App_.
 - [ ] **Ekspor Data Ekstensif**: Laporan analitik ke dalam format Excel (.xlsx) dan CSV.
+- [ ] **AI Deskripsi Produk Otomatis**: Menggunakan AI untuk membuat deskripsi produk secara otomatis di fitur admin.
+- [ ] **AI Rekomendasi Menu Berdasarkan Cuaca**: Menggunakan AI untuk membuat rekomendasi menu berdasarkan cuaca.
+- [ ] **AI Pesan Otomatis Whatsapp**: Pengiriman pesan otomatis via Whatsapp ke pelanggan.
 
 ---
 

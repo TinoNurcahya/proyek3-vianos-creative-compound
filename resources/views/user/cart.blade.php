@@ -76,7 +76,7 @@
                       <div
                         class="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 cursor-pointer"
                         @click="item.selected = !item.selected">
-                        <img :src="item.product?.image ? `/storage/${item.product.image}` : '/images/default/default.jpg'"
+                        <img :src="item.product?.main_image ? '{{ asset('storage') }}/' + item.product.main_image : '{{ asset('images/default/Latte.jpg') }}'"
                           :alt="item.product?.name || 'Produk'" class="w-full h-full object-cover">
                       </div>
 
