@@ -44,7 +44,8 @@
             class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 lg:mb-8 border-b border-[#3E1E04]/10 pb-4">
             <header>
               <h2 class="text-2xl font-bold text-[#3E1E04] font-primary">Riwayat Pesanan</h2>
-              <p class="text-sm text-gray-500 mt-1 font-secondary">Daftar menu yang pernah kamu pesan di {{ Cache::get('store_name', 'Seven Coffee') }}.</p>
+              <p class="text-sm text-gray-500 mt-1 font-secondary">Daftar menu yang pernah kamu pesan di
+                {{ Cache::get('store_name', 'Seven Coffee') }}.</p>
             </header>
 
             <div
@@ -188,7 +189,8 @@
                     <div class="flex gap-4 items-start pb-4 border-b border-gray-50 last:border-0">
                       <div class="w-14 h-14 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0 border border-gray-100">
                         <img
-                          :src="item.product?.image ? `/storage/${item.product.image}` : '/images/default/default.jpg'"
+                          :src="item.product?.main_image ? '{{ asset('storage') }}/' + item.product.main_image :
+                              '{{ asset('images/default/default.jpg') }}'"
                           class="w-full h-full object-cover">
                       </div>
                       <div class="flex-1 min-w-0">

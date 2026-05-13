@@ -249,10 +249,10 @@ class MenuControllerAdmin extends Controller
     $menu->is_available = !$menu->is_available;
     $menu->save();
 
-    $status = $menu->is_available ? 'tersedia' : 'habis/tidak tersedia';
+    $status = $menu->is_available ? 'tersembunyi' : 'terlihat';
     return response()->json([
       'success' => true,
-      'message' => "Status ketersediaan diubah menjadi {$status}."
+      'message' => "Status tampilan menu diubah menjadi {$status}."
     ]);
   }
 }

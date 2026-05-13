@@ -1,4 +1,4 @@
-# CARA MENJALANKAN CLAUDEFLARE TUNNEL
+# CARA MENJALANKAN CLAUDEFLARE TUNNEL DI CMD
 # powershell -ExecutionPolicy Bypass -File .\cloudflare-tunnel.ps1
 # taskkill /F /IM cloudflared.exe
 

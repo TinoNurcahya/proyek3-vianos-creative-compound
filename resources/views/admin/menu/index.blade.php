@@ -54,7 +54,7 @@
               <th scope="col" class="px-6 py-4 font-semibold">Harga</th>
               <th scope="col" class="px-6 py-4 font-semibold text-center">Stok</th>
               <th scope="col" class="px-6 py-4 font-semibold text-center">Menu Signature</th>
-              <th scope="col" class="px-6 py-4 font-semibold text-center">Status</th>
+              <th scope="col" class="px-6 py-4 font-semibold text-center">Tampilkan</th>
               <th scope="col" class="px-6 py-4 font-semibold text-right">Aksi</th>
             </tr>
           </thead>

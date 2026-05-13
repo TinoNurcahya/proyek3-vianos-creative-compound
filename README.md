@@ -177,7 +177,7 @@ Ikuti instruksi berikut untuk menjalankan proyek ini secara lokal.
 1. **Unduh (Clone) repositori**:
 
     ```bash
-    git clone https://github.com/yourusername/proyek3-vianos-creative-compound.git
+    git clone https://github.com/ivan-4k/proyek3-vianos-creative-compound.git
     cd proyek3-vianos-creative-compound
     ```
 
@@ -343,7 +343,7 @@ Platform Seven Caffee menggunakan **hybrid recommendation system** yang menggabu
               │   Return Final     │
               │   Recommendations  │
               │   (Up to 6 items)  │
-              └──────────────────────┘
+              └────────────────────┘
 ```
 
 #### 🔧 Komponen Teknis
@@ -411,6 +411,17 @@ $productScores = aggregate_products($similarUsers);
 $topRecommendations = sort_by_score($productScores)->take(6);
 ```
 
+**3. Personalisasi Menu Populer (K-Means Clustering)**
+
+Menggunakan algoritma K-Means Clustering untuk mengelompokkan pengguna berdasarkan pola pembelian mereka. Sistem membaca jumlah pembelian per-kategori produk untuk setiap user, lalu membentuk kluster. Pada halaman "Sedang Populer", pengguna akan melihat menu yang paling laris (trending) *hanya* di dalam klusternya, memberikan pengalaman tren yang jauh lebih relevan ("Disarankan Untukmu").
+
+| Aspek               | Deskripsi                                                                      |
+| ------------------- | ------------------------------------------------------------------------------ |
+| **User Features**   | Jumlah pembelian produk untuk setiap kategori (`id_kategori`)                  |
+| **Algoritma**       | K-Means Clustering (Rubix ML)                                                  |
+| **Fallback**        | Jika user belum masuk kluster, tampilkan menu terpopuler secara global         |
+| **Artisan Command** | `php artisan ai:cluster-users` (disimpan pada kolom `cluster_id` di tabel users) |
+
 #### 🔄 Training Pipeline
 
 Semua model di-train secara **otomatis dan berkala** melalui Laravel Scheduler + Queue:
@@ -419,6 +430,7 @@ Semua model di-train secara **otomatis dan berkala** melalui Laravel Scheduler +
 // routes/console.php
 Schedule::job(new TrainRecommenderJob())->weekly()->mondays()->at('02:00');
 Schedule::job(new TrainCollaborativeFilteringJob())->weekly()->mondays()->at('03:00');
+Schedule::command('ai:cluster-users')->dailyAt('00:00');
 ```
 
 **TrainRecommenderJob (Content-Based):**
@@ -534,6 +546,9 @@ App\Jobs\TrainRecommenderJob::dispatch();
 
 // Update Model Collaborative Filtering
 App\Jobs\TrainCollaborativeFilteringJob::dispatch();
+
+// Update Model Menu Populer Personalisasi (K-Means)
+Artisan::call('ai:cluster-users');
 
 // Update Model Prediksi Penjualan & Stok (Opsional)
 App\Jobs\TrainAiModelsJob::dispatch();

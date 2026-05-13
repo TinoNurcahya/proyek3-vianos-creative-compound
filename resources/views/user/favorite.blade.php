@@ -159,8 +159,8 @@
                                     <span>Status</span>
                                   </div>
                                   <span
-                                    class="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider {{ $product->is_available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
-                                    {{ $product->is_available ? 'Tersedia' : 'Habis' }}
+                                    class="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider {{ ($product->is_available && $product->stock > 0) ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
+                                    {{ ($product->is_available && $product->stock > 0) ? 'Tersedia' : 'Habis' }}
                                   </span>
                                 </div>
                               </div>
@@ -193,7 +193,7 @@
                               <button type="button" x-data="{ isAdding: false, added: false }"
                                 @click.prevent="
                   @auth
-if(isAdding || {{ !$product->is_available ? 'true' : 'false' }}) return;
+if(isAdding || {{ (!$product->is_available || $product->stock <= 0) ? 'true' : 'false' }}) return;
                     isAdding = true;
                     fetch('{{ route('cart.add') }}', {
                         method: 'POST',
@@ -210,14 +210,14 @@ if(isAdding || {{ !$product->is_available ? 'true' : 'false' }}) return;
                         }
                     });
                   @else window.location.href = '{{ route('login') }}'; @endauth"
-                                class="flex-1 md:w-64 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md font-secondary {{ !$product->is_available ? 'bg-gray-400 opacity-50 cursor-not-allowed' : '' }}"
+                                class="flex-1 md:w-64 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md font-secondary {{ (!$product->is_available || $product->stock <= 0) ? 'bg-gray-400 opacity-50 cursor-not-allowed' : '' }}"
                                 :class="{
                                     'bg-[#BC430D] hover:bg-[#9e380b]': !isAdding && !added &&
-                                        {{ $product->is_available ? 'true' : 'false' }},
+                                        {{ ($product->is_available && $product->stock > 0) ? 'true' : 'false' }},
                                     'bg-green-600': added
                                 }"
-                                {{ !$product->is_available ? 'disabled' : '' }}>
-                                <template x-if="!isAdding && !added"><span>Tambah Keranjang</span></template>
+                                {{ (!$product->is_available || $product->stock <= 0) ? 'disabled' : '' }}>
+                                <template x-if="!isAdding && !added"><span>{{ ($product->is_available && $product->stock > 0) ? 'Tambah Keranjang' : 'Stok Habis' }}</span></template>
                                 <template x-if="isAdding"><span>Memproses...</span></template>
                                 <template x-if="added"><span>Berhasil!</span></template>
                               </button>

@@ -128,8 +128,8 @@
                     <span>Status</span>
                   </div>
                   <span
-                    class="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider {{ $menu->is_available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
-                    {{ $menu->is_available ? 'Tersedia' : 'Habis' }}
+                    class="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider {{ ($menu->is_available && $menu->stock > 0) ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
+                    {{ ($menu->is_available && $menu->stock > 0) ? 'Tersedia' : 'Habis' }}
                   </span>
                 </div>
               </div>
@@ -164,7 +164,7 @@
               <button type="button" x-data="{ isAdding: false, added: false }"
                 @click.prevent="
       @auth
-if(isAdding || {{ !$menu->is_available ? 'true' : 'false' }}) return;
+if(isAdding || {{ (!$menu->is_available || $menu->stock <= 0) ? 'true' : 'false' }}) return;
           
           isAdding = true;
           
@@ -203,20 +203,20 @@ if(isAdding || {{ !$menu->is_available ? 'true' : 'false' }}) return;
         "
                 class="flex-1
                 md:w-64 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all
-                shadow-md font-secondary {{ !$menu->is_available ? 'bg-gray-400 opacity-50 cursor-not-allowed' : '' }}"
+                shadow-md font-secondary {{ (!$menu->is_available || $menu->stock <= 0) ? 'bg-gray-400 opacity-50 cursor-not-allowed' : '' }}"
                 :class="{
                     'bg-[#BC430D] hover:bg-[#9e380b] shadow-[#BC430D]/20 hover:-translate-y-0.5': !isAdding && !added &&
-                        {{ $menu->is_available ? 'true' : 'false' }},
+                        {{ ($menu->is_available && $menu->stock > 0) ? 'true' : 'false' }},
                     'bg-[#9e380b] opacity-75 cursor-wait': isAdding,
                     'bg-green-600': added
                 }"
-                {{ !$menu->is_available ? 'disabled' : '' }}>
+                {{ (!$menu->is_available || $menu->stock <= 0) ? 'disabled' : '' }}>
 
                 {{-- State Default --}}
                 <template x-if="!isAdding && !added">
                   <div class="flex items-center gap-2">
                     <i class="fas fa-shopping-cart text-lg"></i>
-                    <span>{{ $menu->is_available ? 'Tambah Keranjang' : 'Stok Habis' }}</span>
+                    <span>{{ ($menu->is_available && $menu->stock > 0) ? 'Tambah Keranjang' : 'Stok Habis' }}</span>
                   </div>
                 </template>
 

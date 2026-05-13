@@ -59,8 +59,11 @@
                 {{-- Looping Item --}}
                 <template x-for="item in items" :key="item.id_keranjang">
                   <div
-                    class="border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4 transition-all hover:border-[#3E1E04]/30"
-                    :class="{ 'bg-orange-50/30 border-[#BC430D]/30': item.selected }"
+                    class="border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4 transition-all"
+                    :class="{ 
+                        'bg-orange-50/30 border-[#BC430D]/30': item.selected,
+                        'opacity-60 bg-gray-50 border-gray-100': !item.stock_sufficient
+                    }"
                     x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100 scale-100"
                     x-transition:leave-end="opacity-0 scale-90">
 
@@ -68,24 +71,30 @@
                     <div class="flex gap-3 sm:gap-4">
                       {{-- Checkbox Individual --}}
                       <div class="flex items-start pt-5 sm:pt-6">
-                        <input type="checkbox" x-model="item.selected"
-                          class="w-4 h-4 sm:w-5 sm:h-5 text-[#BC430D] bg-gray-100 border-gray-300 rounded focus:ring-[#BC430D] focus:ring-2 cursor-pointer transition-all">
+                        <input type="checkbox" x-model="item.selected" :disabled="!item.stock_sufficient"
+                          class="w-4 h-4 sm:w-5 sm:h-5 text-[#BC430D] bg-gray-100 border-gray-300 rounded focus:ring-[#BC430D] focus:ring-2 cursor-pointer transition-all disabled:opacity-30 disabled:cursor-not-allowed">
                       </div>
 
                       {{-- Gambar Produk --}}
                       <div
-                        class="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 cursor-pointer"
-                        @click="item.selected = !item.selected">
+                        class="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200"
+                        :class="item.stock_sufficient ? 'cursor-pointer' : 'cursor-not-allowed'"
+                        @click="if(item.stock_sufficient) item.selected = !item.selected">
                         <img :src="item.product?.main_image ? '{{ asset('storage') }}/' + item.product.main_image : '{{ asset('images/default/Latte.jpg') }}'"
-                          :alt="item.product?.name || 'Produk'" class="w-full h-full object-cover">
+                          :alt="item.product?.name || 'Produk'" class="w-full h-full object-cover" :class="!item.stock_sufficient ? 'grayscale' : ''">
                       </div>
 
                       {{-- Detail Info --}}
                       <div class="flex-1 min-w-0">
                         <div class="flex justify-between items-start gap-2">
-                          <div class="cursor-pointer flex-1 min-w-0" @click="item.selected = !item.selected">
-                            <h3 class="font-bold text-sm sm:text-base md:text-lg text-[#3E1E04] font-primary truncate"
-                              x-text="item.product?.name || 'Produk'"></h3>
+                          <div class="flex-1 min-w-0" :class="item.stock_sufficient ? 'cursor-pointer' : 'cursor-not-allowed'" @click="if(item.stock_sufficient) item.selected = !item.selected">
+                            <div class="flex items-center gap-2">
+                              <h3 class="font-bold text-sm sm:text-base md:text-lg text-[#3E1E04] font-primary truncate"
+                                x-text="item.product?.name || 'Produk'"></h3>
+                              <template x-if="!item.stock_sufficient">
+                                <span class="bg-red-100 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Stok Habis</span>
+                              </template>
+                            </div>
                             <p class="text-xs sm:text-sm text-gray-600 font-secondary mt-0.5">Rp <span
                                 x-text="formatRupiah(item.product?.price || 0)"></span></p>
                           </div>
@@ -213,7 +222,7 @@
       Alpine.data('cartApp', (initialCarts) => ({
         items: initialCarts.map(item => ({
           ...item,
-          selected: true
+          selected: item.stock_sufficient
         })),
         isLoading: false,
 
@@ -222,15 +231,20 @@
           return this.items.filter(item => item.selected);
         },
 
-        // Getter untuk mengecek apakah SEMUA item dicentang
+        // Getter untuk mengecek apakah SEMUA item yang TERSEDIA dicentang
         get allSelected() {
-          return this.items.length > 0 && this.selectedItems.length === this.items.length;
+          const availableItems = this.items.filter(i => i.stock_sufficient);
+          return availableItems.length > 0 && availableItems.every(i => i.selected);
         },
 
         // Fungsi ketika kotak "Pilih Semua" diklik
         toggleAll() {
           const newState = !this.allSelected;
-          this.items.forEach(item => item.selected = newState);
+          this.items.forEach(item => {
+            if (item.stock_sufficient) {
+              item.selected = newState;
+            }
+          });
         },
 
         // Kalkulasi Total HANYA untuk item yang dicentang
