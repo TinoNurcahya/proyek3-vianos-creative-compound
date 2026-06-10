@@ -1,0 +1,64 @@
+services:
+  # --- Laravel Application (PHP-FPM) ---
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: proyek3_app
+    container_name: proyek3_app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      # Di produksi, Anda bisa menghapus volume mount ini agar sepenuhnya menggunakan kode yang di-bake di dalam image.
+      # Untuk development lokal, volume mount ini tetap diperlukan agar perubahan kode langsung terlihat.
+      - ./:/var/www/html
+      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    environment:
+      - DB_HOST=db  # Mengarahkan koneksi database ke service 'db' di internal network Docker
+    depends_on:
+      - db
+      - redis
+
+  # --- Web Server (Nginx) ---
+  web:
+    image: nginx:stable-alpine
+    container_name: proyek3_web
+    restart: unless-stopped
+    ports:
+      # Di produksi (VPS): mapping ke port "80:80" (dan "443:443" jika ingin SSL langsung di Nginx).
+      # Di lokal (Laragon): gunakan port "8080:80" untuk menghindari tabrakan port 80 dengan Apache/Nginx Laragon.
+      - "8080:80"
+    volumes:
+      - ./:/var/www/html:delegated
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+
+  # --- Database (MySQL) ---
+  db:
+    image: mysql:8.0
+    container_name: proyek3_db
+    restart: unless-stopped
+    environment:
+      # Menggunakan nilai dari file .env host jika ada, jika tidak ada fallback ke default.
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_DATABASE:-laravel}
+    volumes:
+      - dbdata:/var/lib/mysql
+    ports:
+      # Di produksi: BIND HANYA KE LOCALHOST (127.0.0.1) untuk keamanan agar DB tidak terekspos ke internet publik.
+      # Port 33061 digunakan untuk menghindari konflik dengan port 3306 milik Laragon lokal.
+      - "127.0.0.1:33061:3306"
+
+  # --- Cache & Session (Redis) ---
+  redis:
+    image: redis:7-alpine
+    container_name: proyek3_redis
+    restart: unless-stopped
+    ports:
+      # Di produksi: Sebaiknya jangan mengekspos port redis ke luar untuk keamanan.
+      # Cukup biarkan berkomunikasi via internal network Docker.
+      - "127.0.0.1:6379:6379"
+
+volumes:
+  dbdata:

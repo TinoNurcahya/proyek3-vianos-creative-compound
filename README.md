@@ -29,6 +29,9 @@
 
 **Seven Caffee** adalah platform e-commerce dan dashboard manajemen terpadu yang dirancang khusus untuk operasional kafe modern. Lebih dari sekadar aplikasi pemesanan biasa, sistem ini ditenagai oleh Kecerdasan Buatan (AI). Bagi pelanggan, AI akan merekomendasikan menu yang dipersonalisasi. Sementara itu bagi pihak manajemen, fitur **AI Sales Forecasting** tingkat tinggi memungkinkan prediksi pendapatan, pelacakan jam ramai, hingga analisis retensi pelanggan untuk mengoptimalkan profitabilitas bisnis secara strategis.
 
+> [!NOTE]
+> **Dokumentasi AI Terdedikasi**: Untuk detail arsitektur teknis lengkap, visualisasi alur Mermaid, detail formula kemiripan (Cosine, Euclidean), system prompt dinamis chatbot, dan skrip pengujian CLI, silakan rujuk ke [Dokumentasi Sistem Kecerdasan Buatan (AI)](docs/README_AI.md).
+
 ---
 
 ## 📑 Daftar Isi
@@ -146,12 +149,19 @@ seven-caffee/
 
 ## 📸 Tangkapan Layar
 
-_(Ganti gambar placeholder di bawah ini dengan tangkapan layar aplikasi asli Anda untuk memberikan gambaran visual yang jelas kepada pengembang atau klien)_
+### 👨‍💻 Antarmuka Pelanggan (Customer Interface)
 
-|                                       Halaman Utama (Customer)                                        |                                           Dashboard Analitik (Admin)                                            |
-| :---------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------------------: |
-| <img src="https://via.placeholder.com/500x300/1F2937/FFFFFF?text=Landing+Page+UI" alt="Landing Page"> | <img src="https://via.placeholder.com/500x300/1F2937/FFFFFF?text=AI+Analytics+Dashboard" alt="Admin Dashboard"> |
-|                           _Tampilan modern dan responsif untuk pelanggan._                            |                                 _Prediksi pendapatan dan strategi AI otomatis._                                 |
+| Halaman Utama & Rekomendasi AI | Jelajah Menu & Interaksi |
+| :---: | :---: |
+| <img src="docs/dashboard_user.png" width="100%" alt="Halaman Utama Customer"> | <img src="docs/menu_user.png" width="100%" alt="Menu Pelanggan"> |
+| _Tampilan modern, responsif, ditenagai rekomendasi menu pintar._ | _Pencarian, filter kategori instan, dan antarmuka pemesanan cepat._ |
+
+### 👑 Antarmuka Administrator (Admin Panel)
+
+| Dashboard Analitik & Sales Forecasting AI |
+| :---: |
+| <img src="docs/dashboard_admin.png" width="100%" alt="Dashboard Admin & AI Forecasting"> |
+| _Visualisasi data lengkap, prediksi pendapatan, ramalan permintaan, serta rekomendasi keputusan berbasis AI._ |
 
 ---
 
@@ -428,9 +438,10 @@ Semua model di-train secara **otomatis dan berkala** melalui Laravel Scheduler +
 
 ```php
 // routes/console.php
+Schedule::command('ai:cluster-users')->dailyAt('00:00');
+Schedule::job(new TrainAiModelsJob())->weekly()->mondays()->at('01:00');
 Schedule::job(new TrainRecommenderJob())->weekly()->mondays()->at('02:00');
 Schedule::job(new TrainCollaborativeFilteringJob())->weekly()->mondays()->at('03:00');
-Schedule::command('ai:cluster-users')->dailyAt('00:00');
 ```
 
 **TrainRecommenderJob (Content-Based):**
@@ -446,6 +457,13 @@ Schedule::command('ai:cluster-users')->dailyAt('00:00');
 - Build user-product purchase matrix
 - Fit ZScaleStandardizer pada matrix
 - Persist normalized vectors ke `storage/app/ai-models/collaborative_data.json`
+
+**TrainAiModelsJob (Revenue Predictor & Demand Forecast):**
+
+- Mengambil data transaksi harian 6 bulan terakhir.
+- Melatih model Ridge Regression (`RevenuePredictor`) untuk memprediksi pendapatan harian/bulanan.
+- Melatih model Ridge Regression (`DemandForecast`) untuk setiap produk aktif guna memprediksi volume penjualan harian 30 hari ke depan dan menghitung sisa waktu sebelum stok habis (*burn-rate*).
+- Menyimpan model biner ke `storage/app/ai-models/revenue.model` dan `storage/app/ai-models/demand_{productId}.model`.
 
 #### 🎯 Alur Rekomendasi pada User
 
